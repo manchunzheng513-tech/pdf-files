@@ -1,0 +1,548 @@
+{
+  "name": "PDF真实测试qwen",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -336
+      ],
+      "id": "21843dd7-a4e1-4bb5-8316-494ad8520a14",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "59880ac2-b3c8-4b91-a1e3-a587680c5b79",
+      "name": "Chat Input",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "position": [
+        304,
+        -80
+      ],
+      "webhookId": "1727c687-aed0-49cf-96af-e7796819fbb3",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 在Prepare Context节点中优化\nconst systemPrompt = `你是一个职业规划顾问。请基于以下上下文信息回答关于职业规划的问题。\n\n上下文信息：\n${context}\n\n要求：\n1. 基于文档内容提供专业的职业规划建议\n2. 重点关注SWOT分析、行动方案、评估修正等内容\n3. 回答要具有建设性和指导性\n4. 如果上下文没有相关信息，请如实说明\n\n问题：${query}\n请基于文档内容回答：`;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        -80
+      ],
+      "id": "67e6246b-a174-4e26-a4d7-bc8d7b694b91",
+      "name": "Prepare Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 渐进式改进的PDF数据处理\nconst item = $input.item;\n\nconsole.log('=== 智能PDF数据处理 ===');\n\n// 检测数据来源类型\nlet dataSource = 'unknown';\nlet texts = [];\n\n// 来源1: 从真实PDF加载器来的数据（为未来准备）\nif (item.json.document && item.json.document.pageContent) {\n  dataSource = 'real_pdf';\n  texts = [item.json.document.pageContent];\n  console.log('✅ 检测到真实PDF文档数据');\n}\n// 来源2: 从上游模拟节点来的数据  \nelse if ($('Code in JavaScript').all() && $('Code in JavaScript').all().length > 0) {\n  const upstreamItem = $('Code in JavaScript').all()[0];\n  if (upstreamItem.json.texts) {\n    dataSource = 'simulated';\n    texts = upstreamItem.json.texts;\n    console.log('🔄 使用上游模拟数据');\n  }\n}\n// 来源3: 备用真实内容\nelse {\n  dataSource = 'fallback_real';\n  texts = [\n    \"比特币：一种点对点电子现金系统 - 纯粹的点对点版本电子现金将允许在线支付直接从一方发送到另一方，而无需通过金融机构。\",\n    \"数字签名提供了部分解决方案，但如果仍然需要可信第三方来防止双重支付，则主要优势就丧失了。\",\n    \"我们提出一种使用点对点网络解决双重支付问题的解决方案。网络通过将交易哈希进一个持续的工作量证明链来时间戳记交易，形成无法更改的交易记录。\",\n    \"工作量证明涉及扫描一个值，当该值被哈希时（例如使用SHA-256），哈希以一定数量的零位开始。平均所需工作随着所需零位数量呈指数增长，并通过执行单个哈希来验证。\",\n    \"网络节点始终将最长的链视为正确的链，并持续努力扩展它。如果两个节点同时广播不同版本的下一个块，有些节点可能先收到其中一个。\",\n    \"节点在它们首先收到的块上工作，但保存另一个分支，以防它变得更长。当下一个工作量证明找到并且一个分支变得更长时，平局被打破；在另一个分支上工作的节点然后切换到更长的分支。\"\n  ];\n  console.log('📝 使用增强的备用真实内容');\n}\n\n// 设置输出\nitem.json.file_name = \"bitcoin.pdf\";\nitem.json.file_url = \"https://bitcoin.org/bitcoin.pdf\"; \nitem.json.texts = texts;\nitem.json.data_source = dataSource;\n\n// 确保二进制数据兼容性\nif (!item.binary && item.json.response && item.json.response.body) {\n    item.binary = {\n        data: {\n            data: item.json.response.body,\n            mimeType: \"application/pdf\", \n            fileName: \"bitcoin.pdf\"\n        }\n    };\n}\n\nconsole.log(`数据来源: ${dataSource}`);\nconsole.log(`处理文本块数量: ${texts.length}`);\ntexts.forEach((text, index) => {\n  console.log(`文本块 ${index + 1}: ${text.substring(0, 80)}...`);\n});\n\nreturn item;\n// 在 \"Code in JavaScript处理数据\" 节点的return之前添加：\n// 构建完整的千问嵌入请求体\nitem.json.qianwen_request_body = {\n  \"model\": \"text-embedding-v1\",\n  \"input\": {\n    \"texts\": item.json.texts\n  }\n};\n\nconsole.log('构建的请求体:', JSON.stringify(item.json.qianwen_request_body, null, 2));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -336
+      ],
+      "id": "eab948b4-4784-470a-82cf-aab17a7294b8",
+      "name": "Code in JavaScript处理数据"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-653cc34b4b70413cb887e098839f5e48"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.final_embedding_request }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        -336
+      ],
+      "id": "b3e6ea34-2963-449c-98b5-41e2e8424986",
+      "name": "Qianwen Embeddings"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理千问嵌入响应并准备Pinecone数据\nconst item = $input.item;\n\nconsole.log('=== 处理嵌入向量 ===');\n\n// 解析千问嵌入响应\nlet vectors = [];\n\nif (item.json.output && item.json.output.embeddings) {\n  const embeddings = item.json.output.embeddings;\n  const texts = item.json.texts || []; // 使用动态文本\n  \n  if (embeddings.length !== texts.length) {\n    console.warn(`⚠️ 嵌入向量数量(${embeddings.length})与文本数量(${texts.length})不匹配`);\n  }\n  \n  // 准备Pinecone upsert格式\n  vectors = embeddings.map((embeddingObj, index) => {\n    const text = texts[index] || `文本块 ${index}`;\n    return {\n      id: `chunk_${index}_${Date.now()}`,\n      values: embeddingObj.embedding,\n      metadata: {\n        text: text.substring(0, 500), // 限制文本长度\n        source: \"bitcoin.pdf\",\n        chunk: index,\n        data_source: item.json.data_source || 'unknown'\n      }\n    };\n  });\n  \n  console.log(`✅ 生成 ${vectors.length} 个向量`);\n} else {\n  console.error('❌ 未找到嵌入向量数据');\n  // 创建备用向量以确保流程继续\n  vectors = [{\n    id: `fallback_${Date.now()}`,\n    values: Array(1536).fill(0.1),\n    metadata: {\n      text: \"比特币系统基础介绍\",\n      source: \"bitcoin.pdf\",\n      chunk: 0,\n      data_source: 'fallback'\n    }\n  }];\n}\n\nitem.json.vectors = vectors;\n\n// 生成完整的 Pinecone upsert 请求体\nitem.json.pinecone_request = {\n  \"vectors\": item.json.vectors\n};\n\n// 将请求体序列化为 JSON 字符串\nitem.json.pinecone_body = JSON.stringify(item.json.pinecone_request);\n\nconsole.log('Pinecone 请求体准备完成');\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        -336
+      ],
+      "id": "1bd36606-45d7-4d1b-be84-47e10d3006b1",
+      "name": "Process Embeddings"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pdf-chat-index-75fiy11.svc.aped-4627-b74a.pinecone.io/vectors/upsert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Api-Key",
+              "value": "pcsk_MB5Pb_J8yWGq9k4iR12v2GuqVCoMokzuHsRaNfToqc8GQioceAh1LZDgbbB3ZLwH8rW7J"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "json",
+        "body": "={\n  \"vectors\": {{JSON.stringify($json.vectors)}}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1936,
+        -336
+      ],
+      "id": "d2b29df0-7458-4689-a1c6-a7ea4f4b0504",
+      "name": "Pinecone Upsert"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-653cc34b4b70413cb887e098839f5e48"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-v1\",\n  \"input\": {\n    \"texts\": [\n      \"比特币是什么？\"\n    ]\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        128
+      ],
+      "id": "6f00902f-db7d-4e68-8c36-831fc582f514",
+      "name": "Query Embeddings"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理嵌入响应 - 提取查询向量\nconst item = $input.item;\n\nconsole.log('=== 开始处理嵌入响应 ===');\n\n// 1. 验证API响应结构\nif (!item.json.output) {\n  throw new Error('API响应缺少output字段');\n}\n\nif (!item.json.output.embeddings) {\n  throw new Error('API响应缺少embeddings字段');\n}\n\nif (item.json.output.embeddings.length === 0) {\n  throw new Error('embeddings数组为空');\n}\n\n// 2. 提取第一个嵌入向量（用户问题的向量）\nconst embeddingData = item.json.output.embeddings[0];\n\nif (!embeddingData.embedding) {\n  throw new Error('嵌入向量数据缺失');\n}\n\n// 3. 存储查询向量和用户问题\nitem.json.query_vector = embeddingData.embedding;\n\n// 硬编码测试问题 - 这样至少可以让流程继续\nitem.json.user_query = \"比特币是什么？\";\nconsole.log('使用硬编码问题:', item.json.user_query);\n\n// 4. 记录调试信息\nconsole.log('✅ 向量提取成功');\nconsole.log('用户问题:', item.json.user_query);\nconsole.log('向量维度:', item.json.query_vector.length);\n\n// 5. 数据完整性检查\nif (item.json.query_vector.length !== 1536) {\n  console.warn('⚠️ 向量维度不是预期的1536，实际为:', item.json.query_vector.length);\n}\n\nconsole.log('=== 嵌入响应处理完成 ===');\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        128
+      ],
+      "id": "50d07d02-8416-44ad-a5a0-09485b4ca687",
+      "name": "Process Query Embeddings"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 准备 Pinecone 查询请求体\nconst item = $input.item;\n\nconsole.log('查询向量维度:', item.json.query_vector ? item.json.query_vector.length : '无');\n\n// 检查向量数据完整性\nif (!item.json.query_vector || item.json.query_vector.length !== 1536) {\n  throw new Error(`向量数据异常: 期望1536维，实际${item.json.query_vector ? item.json.query_vector.length : '无'}维`);\n}\n\n// 构建查询请求 - 使用正确的Pinecone格式\nconst queryBody = {\n  \"vector\": item.json.query_vector,\n  \"topK\": 3,\n  \"includeMetadata\": true,\n  \"includeValues\": false\n};\n\n// 将请求体转换为 JSON 字符串\nitem.json.pinecone_body = JSON.stringify(queryBody);\n\nconsole.log('Pinecone 查询请求体长度:', item.json.pinecone_body.length);\nconsole.log('向量前10个值:', item.json.query_vector.slice(0, 10));\nconsole.log('Pinecone 查询请求体准备完成');\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        -96
+      ],
+      "id": "7689d8dd-fb22-495b-943a-f04138e0621f",
+      "name": "Prepare Pinecone Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pdf-chat-index-75fiy11.svc.aped-4627-b74a.pinecone.io/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Api-Key",
+              "value": "pcsk_MB5Pb_J8yWGq9k4iR12v2GuqVCoMokzuHsRaNfToqc8GQioceAh1LZDgbbB3ZLwH8rW7J"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.pinecone_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1088,
+        128
+      ],
+      "id": "03e40dcc-f395-4aac-a766-ee4f1739aaf6",
+      "name": "Pinecone Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-653cc34b4b70413cb887e098839f5e48"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen-turbo\",\n  \"input\": {\n    \"messages\": [\n      {\n        \"role\": \"system\",\n        \"content\": \"你是一个专业的文档助手。请基于用户提供的上下文信息回答问题。如果上下文中有相关信息，请基于这些信息回答；如果上下文没有相关信息，请如实说明。请直接回答问题，不要要求用户提问。\"\n      },\n      {\n        \"role\": \"user\",\n        \"content\": \"上下文信息：比特币是一种点对点的电子现金系统，允许在线支付直接从一方发送到另一方，而无需通过金融机构。\\n\\n问题：比特币是什么？\\n\\n请基于上下文信息直接回答上述问题：\"\n      }\n    ]\n  },\n  \"parameters\": {\n    \"result_format\": \"message\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        128
+      ],
+      "id": "15951aee-faf5-4d3e-8f7f-769f4f9d7ac7",
+      "name": "Qianwen AI Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 调试：检查 Query Embeddings 的输出\nconst item = $input.item;\n\nconsole.log('=== Query Embeddings 输出调试 ===');\nconsole.log('所有JSON字段:', Object.keys(item.json));\nconsole.log('chatInput 值:', item.json.chatInput);\nconsole.log('chatInput 类型:', typeof item.json.chatInput);\nconsole.log('完整的JSON数据:', JSON.stringify(item.json, null, 2));\n\n// 检查是否有其他可能包含用户问题的字段\nfor (let key in item.json) {\n  if (typeof item.json[key] === 'string' && item.json[key].length > 0) {\n    console.log('字符串字段:', key, '=', item.json[key]);\n  }\n}\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -96
+      ],
+      "id": "d84f631e-266d-454d-a2b6-eedca20ac683",
+      "name": "Debug Chat Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 生成最终响应格式\nconst item = $input.item;\n\n// 从千问API响应中提取回答\nlet answer = \"\";\nif (item.json.output && item.json.output.choices && item.json.output.choices.length > 0) {\n  const choice = item.json.output.choices[0];\n  if (choice.message && choice.message.content) {\n    answer = choice.message.content;\n  }\n}\n\n// 如果没有获取到回答，使用备用方案\nif (!answer) {\n  answer = \"抱歉，我无法基于提供的文档生成回答。\";\n}\n\nlet response = answer;\n\n// 添加引用信息\nif (item.json.matches && item.json.matches.length > 0) {\n  response += \"\\\\n\\\\n**引用来源**：\";\n  // 默认引用前两个相关文档\n  const citations = item.json.matches.slice(0, 2);\n  citations.forEach((match, index) => {\n    const source = match.metadata;\n    response += `\\\\n- ${source.source} (部分${source.chunk + 1})`;\n  });\n}\n\nitem.json.final_response = response;\nitem.json.chatOutput = response;\n\nconsole.log('最终响应生成完成:', response);\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -80
+      ],
+      "id": "cb992834-2274-45d9-b946-8fb9c289aeb1",
+      "name": "Generate Final Response1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        112,
+        -576
+      ],
+      "typeVersion": 1,
+      "id": "71b6bb23-fb65-4dc6-9d47-f850121669ca",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 配置真实PDF文档 - 生涯报告书\nconst item = $input.item;\n\nconsole.log('🚀 配置生涯报告书PDF文档');\n\n// 设置你的PDF文档信息\nitem.json.file_name = \"生涯报告书.pdf\";\nitem.json.file_url = \"https://your-domain.com/生涯报告书.pdf\";  // 替换为你的实际PDF URL\n\n// 文档描述\nitem.json.document_description = \"文秘专业教育人员职业规划报告\";\nitem.json.document_type = \"career_planning\";\nitem.json.author = \"文秘专业学生\";\n\nconsole.log('✅ 生涯报告书配置完成');\nconsole.log('文档名称:', item.json.file_name);\nconsole.log('文档类型:', item.json.document_type);\n\n// 初始化文本内容\nitem.json.texts = [\n  \"正在加载生涯报告书内容...\"\n];\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -336
+      ],
+      "id": "b11f3e3b-9d51-4cd6-b186-049774049462",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 调试上游数据\nconst item = $input.item;\n\nconsole.log('=== 上游数据调试 ===');\nconsole.log('1. texts 数组内容:', item.json.texts);\nconsole.log('2. texts 类型:', typeof item.json.texts);\nconsole.log('3. 是数组吗:', Array.isArray(item.json.texts));\n\nif (Array.isArray(item.json.texts)) {\n  console.log('4. 数组长度:', item.json.texts.length);\n  item.json.texts.forEach((text, index) => {\n    console.log(`   文本${index}: ${text.substring(0, 50)}...`);\n  });\n} else {\n  console.log('4. texts 不是数组，实际值:', item.json.texts);\n}\n\n// 测试表达式解析\nconsole.log('5. 测试表达式解析:');\nconst testExpr = \"={{ $json.texts }}\";\nconsole.log('   表达式:', testExpr);\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -336
+      ],
+      "id": "bb3b9010-e57d-46c8-974c-099cfcae32b9",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "69bf5aa8-5b9e-436b-b7d0-6efb9788675d",
+              "name": "model",
+              "value": "text-embedding-v2",
+              "type": "string"
+            },
+            {
+              "id": "6dde734a-48a5-49c6-b1de-68bf75df61b4",
+              "name": "texts_array",
+              "value": "={{ $json.texts }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        -336
+      ],
+      "id": "04777e38-7c21-4d3c-990c-85b34b81491d",
+      "name": "text-embedding-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 构建千问嵌入请求体\nconst item = $input.item;\n\nconsole.log('=== 构建嵌入请求体 ===');\n\n// 确保 texts_array 是数组\nlet textsArray = [];\nif (Array.isArray(item.json.texts_array)) {\n  textsArray = item.json.texts_array;\n} else if (Array.isArray(item.json.texts)) {\n  textsArray = item.json.texts;\n} else {\n  // 备用方案\n  textsArray = [\n    \"比特币是一种点对点的电子现金系统\",\n    \"比特币使用工作量证明机制\",\n    \"交易被记录在区块链中\"\n  ];\n}\n\n// 构建完整的请求体对象\nconst requestBody = {\n  \"model\": item.json.model || \"text-embedding-v2\",\n  \"input\": {\n    \"texts\": textsArray\n  }\n};\n\nconsole.log('请求体内容:', JSON.stringify(requestBody, null, 2));\nconsole.log('文本数量:', textsArray.length);\n\n// 将请求体转换为JSON字符串\nitem.json.final_embedding_request = JSON.stringify(requestBody);\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        -336
+      ],
+      "id": "ffac2c1e-ac10-4115-bf2f-9bba8ee27af4",
+      "name": "Code in JavaScript2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Query Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "Qianwen AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript处理数据": {
+      "main": [
+        [
+          {
+            "node": "text-embedding-v2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qianwen Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Process Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Debug Chat Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Query Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pinecone Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Pinecone Query": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Query": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Process Query Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qianwen AI Response": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript处理数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "text-embedding-v2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Qianwen Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8d8f3cd6-e0b3-443a-9a88-9c71e5590cea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c9036fa4f39de74ace8f0580e8b6ce9df7806084c56c9b2cef0f8436e81b4d68"
+  },
+  "id": "Q1APCqJ5XDFMorRB",
+  "tags": []
+}
